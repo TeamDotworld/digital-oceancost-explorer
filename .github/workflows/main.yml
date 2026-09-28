@@ -1,0 +1,35 @@
+name: Create and push a production release to GitHub Container Registry
+
+on:
+  push:
+    branches:
+      - 'main'
+    paths:
+      - "backend/**"
+      - ".github/workflows/main.yml"
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set outputs
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: mathankumar-dotworld
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v2
+        with:
+          context: ./backend
+          push: true
+          platforms: linux/amd64
+          tags: ghcr.io/teamdotworld/digital-ocean-cost-explorer-api:latest,  ghcr.io/teamdotworld/digital-ocean-cost-explorer-api:${{ steps.vars.outputs.sha_short }}
