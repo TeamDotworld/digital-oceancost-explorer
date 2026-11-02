@@ -26,7 +26,7 @@ This project serves as both a practical cost analysis tool and a comprehensive d
 
 ### Prerequisites
 
-- Node.js 22+
+- Node.js 22.12+
 - DigitalOcean API OAuth credentials
 - Redis (for session storage)
 
@@ -88,12 +88,14 @@ REACT_APP_API_URL=http://localhost:5000/api
    cd backend
    npm run dev
    ```
-3. Start the frontend:
+3. Start the frontend (Vite dev server; `npm start` does the same):
    ```
    cd frontend
-   npm start
+   npm run dev
    ```
 4. Open your browser and navigate to `http://localhost:3000`
+
+The frontend is built with [Vite](https://vite.dev/). `npm run build` writes the production files to `frontend/build`, and `npm run lint` checks the code.
 
 ## Deployment
 

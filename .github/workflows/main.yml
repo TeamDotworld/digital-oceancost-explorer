@@ -6,6 +6,8 @@ on:
       - 'main'
     paths:
       - ".github/workflows/main.yml"
+  # Run the build and push by hand from the Actions tab
+  workflow_dispatch:
 
 jobs:
   docker:

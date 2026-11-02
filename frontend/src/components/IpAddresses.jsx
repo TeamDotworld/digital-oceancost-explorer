@@ -71,7 +71,7 @@ const searchableText = (row) => [
 const copyText = async (text) => {
   try {
     await navigator.clipboard.writeText(text);
-  } catch (error) {
+  } catch {
     // Fallback for browsers that block the async clipboard API
     const textarea = document.createElement('textarea');
     textarea.value = text;

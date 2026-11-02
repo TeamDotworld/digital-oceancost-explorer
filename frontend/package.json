@@ -14,15 +14,11 @@
         "recharts": "^2.15.3"
     },
     "scripts": {
-        "start": "react-scripts start",
-        "build": "react-scripts build",
-        "test": "react-scripts test",
-        "eject": "react-scripts eject"
-    },
-    "eslintConfig": {
-        "extends": [
-            "react-app"
-        ]
+        "start": "vite",
+        "build": "vite build",
+        "dev": "vite",
+        "preview": "vite preview",
+        "lint": "eslint src"
     },
     "browserslist": {
         "production": [
@@ -37,7 +33,19 @@
         ]
     },
     "devDependencies": {
-        "react-scripts": "5.0.1",
-        "tailwindcss": "^3.4.16"
+        "@eslint/js": "^10.0.1",
+        "@vitejs/plugin-react": "^6.2.1",
+        "autoprefixer": "^10.6.2",
+        "eslint": "^10.14.0",
+        "eslint-plugin-react-hooks": "^7.1.1",
+        "eslint-plugin-react-refresh": "^0.5.7",
+        "globals": "^17.14.0",
+        "postcss": "^8.5.32",
+        "tailwindcss": "^3.4.16",
+        "vite": "^8.3.5"
+    },
+    "overrides": {
+        "minimatch": "^11.0.4",
+        "uuid": "^11.1.1"
     }
 }
