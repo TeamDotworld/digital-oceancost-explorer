@@ -17,6 +17,9 @@ FROM nginx:alpine
 # Copy built files from build stage
 COPY --from=build /app/build /usr/share/nginx/html
 
-# The container just serves static files; routing is handled by the main Nginx
+# Serve index.html for app routes so refreshing or opening e.g. /overview directly works
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# The container just serves static files; API routing is handled by the main Nginx
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
