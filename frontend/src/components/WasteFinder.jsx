@@ -79,28 +79,32 @@ const WasteFinder = () => {
     item.category !== 'Old snapshot' || item.sourceGone || item.ageDays >= snapshotAge
   ), [data, snapshotAge]);
 
+  // Search applies to the cards too, so the cards (and the PDF) match the table
+  const searched = useMemo(() => {
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return candidates;
+    return candidates.filter(item => {
+      const text = [item.name, item.category, item.reason, item.details, item.region].join(' ').toLowerCase();
+      return words.every(word => text.includes(word));
+    });
+  }, [candidates, query]);
+
   const categoryTotals = useMemo(() => {
     const totals = {};
-    candidates.forEach(item => {
+    searched.forEach(item => {
       if (!totals[item.category]) totals[item.category] = { count: 0, cost: 0 };
       totals[item.category].count++;
       totals[item.category].cost += item.monthlyCost;
     });
     return totals;
-  }, [candidates]);
+  }, [searched]);
 
-  const filtered = useMemo(() => {
-    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    return candidates
-      .filter(item => categoryFilter === 'all' || item.category === categoryFilter)
-      .filter(item => {
-        if (words.length === 0) return true;
-        const text = [item.name, item.category, item.reason, item.details, item.region].join(' ').toLowerCase();
-        return words.every(word => text.includes(word));
-      });
-  }, [candidates, categoryFilter, query]);
+  const filtered = useMemo(() => searched.filter(item =>
+    categoryFilter === 'all' || item.category === categoryFilter
+  ), [searched, categoryFilter]);
 
-  const totalSavings = candidates.reduce((sum, item) => sum + item.monthlyCost, 0);
+  const allSavings = candidates.reduce((sum, item) => sum + item.monthlyCost, 0);
+  const totalSavings = searched.reduce((sum, item) => sum + item.monthlyCost, 0);
   const filteredSavings = filtered.reduce((sum, item) => sum + item.monthlyCost, 0);
 
   const exportFilename = () => `unused-resources_${new Date().toISOString().slice(0, 10)}`;
@@ -165,7 +169,8 @@ const WasteFinder = () => {
               >
                 <p className="text-xs sm:text-sm opacity-80 mb-1">Potential Savings</p>
                 <p className="text-xl sm:text-2xl font-bold">{formatCurrency(totalSavings)}<span className="text-sm font-normal">/mo</span></p>
-                <p className="text-xs mt-1">{candidates.length} item{candidates.length === 1 ? '' : 's'} · {formatCurrency(totalSavings * 12)}/yr</p>
+                <p className="text-xs mt-1">{searched.length} item{searched.length === 1 ? '' : 's'} · {formatCurrency(totalSavings * 12)}/yr</p>
+                {query.trim() && <p className="text-xs mt-0.5 opacity-80">of {formatCurrency(allSavings)}/mo in total</p>}
               </button>
               {CATEGORIES.map(category => {
                 const totals = categoryTotals[category.name] || { count: 0, cost: 0 };

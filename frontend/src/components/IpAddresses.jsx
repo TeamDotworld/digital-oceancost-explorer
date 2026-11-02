@@ -367,8 +367,8 @@ const IpAddresses = () => {
     public: baseFiltered.filter(row => row.scope === 'public').length,
     private: baseFiltered.filter(row => row.scope === 'private').length,
     reserved: baseFiltered.filter(row => row.reserved).length,
-    idle: addresses.filter(row => row.idle).length
-  }), [baseFiltered, addresses]);
+    idle: baseFiltered.filter(row => row.idle).length
+  }), [baseFiltered]);
 
   const typeCounts = useMemo(() => {
     const result = {};
@@ -381,6 +381,11 @@ const IpAddresses = () => {
 
   const isFiltered = query || scope !== 'all' || typeFilter !== 'all' || versionFilter !== 'all' ||
     regionFilter !== 'all' || projectFilter !== 'all' || reservedOnly || idleOnly;
+  
+  // VPCs with their private address count among the addresses shown; with filters on, only VPCs that have matches
+  const visibleVpcs = (data?.vpcs || [])
+    .map(vpc => ({ vpc, privateCount: filtered.filter(row => row.vpc?.id === vpc.id && row.scope === 'private').length }))
+    .filter(({ privateCount }) => privateCount > 0 || !isFiltered);
 
   const clearFilters = () => {
     setQuery('');
@@ -733,12 +738,11 @@ const IpAddresses = () => {
               </p>
             </div>
 
-            {data.vpcs && data.vpcs.length > 0 && (
+            {visibleVpcs.length > 0 && (
               <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-8">
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">VPC Networks</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {data.vpcs.map(vpc => {
-                    const privateCount = addresses.filter(row => row.vpc?.id === vpc.id && row.scope === 'private').length;
+                  {visibleVpcs.map(({ vpc, privateCount }) => {
                     return (
                       <button
                         key={vpc.id}

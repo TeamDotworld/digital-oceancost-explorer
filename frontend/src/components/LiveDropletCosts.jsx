@@ -307,14 +307,6 @@ const LiveDropletCosts = () => {
       .filter(droplet => droplet.tags && droplet.tags.includes('k8s:worker'))
       .reduce((sum, droplet) => sum + droplet.projected_cost, 0);
   };
-
-  const getK8sWorkerFullMonthCost = () => {
-    if (!dropletData || !dropletData.droplets) return 0;
-    
-    return dropletData.droplets
-      .filter(droplet => droplet.tags && droplet.tags.includes('k8s:worker'))
-      .reduce((sum, droplet) => sum + droplet.full_month_cost, 0);
-  };
   
   const filteredDroplets = getSortedDroplets(getFilteredDroplets());
   const regionOptions = getRegionOptions();
@@ -322,10 +314,11 @@ const LiveDropletCosts = () => {
   const slugOptions = getSlugOptions();
   const projectOptions = getProjectOptions();
   const filteredCost = filteredDroplets.reduce((sum, droplet) => sum + droplet.projected_cost, 0);
+  const filteredHourlyRate = filteredDroplets.reduce((sum, droplet) => sum + droplet.hourly_price, 0);
+  const isFiltered = hasActiveFilters || excludeK8sWorkers;
   const filteredFullMonthCost = filteredDroplets.reduce((sum, droplet) => sum + droplet.full_month_cost, 0);
   const k8sWorkerCount = getK8sWorkerCount();
   const k8sWorkerCost = getK8sWorkerCost();
-  const k8sWorkerFullMonthCost = getK8sWorkerFullMonthCost();
   
   const exportFilename = () => `droplet-costs_${new Date().toISOString().slice(0, 10)}`;
   
@@ -402,49 +395,35 @@ const LiveDropletCosts = () => {
         </div>
       ) : dropletData ? (
         <>
+          {/* Cards always describe the droplets the filters currently show, so the page and its PDF match */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="text-sm text-blue-700 mb-1">Total Droplets</p>
-              <p className="text-xl sm:text-2xl font-bold text-blue-900">
-                {dropletData.count}
-                {excludeK8sWorkers && k8sWorkerCount > 0 && (
-                  <span className="text-sm font-normal ml-2">
-                    (excl. {k8sWorkerCount} DOKS workers)
-                  </span>
-                )}
-              </p>
+              <p className="text-sm text-blue-700 mb-1">{isFiltered ? 'Droplets Shown' : 'Total Droplets'}</p>
+              <p className="text-xl sm:text-2xl font-bold text-blue-900">{filteredDroplets.length}</p>
+              {isFiltered && <p className="text-xs text-blue-700 mt-1">of {dropletData.count} total</p>}
             </div>
             <div className="bg-green-50 p-4 rounded-lg">
               <Tooltip tooltip="Cost projected for the remainder of the current month based on hourly rates, accounting for droplet creation dates." wide={true}>
                 <p className="text-sm text-green-700 mb-1 cursor-help">
-                  Total Projected Cost <span className="text-xs">ⓘ</span>
+                  Projected Cost <span className="text-xs">ⓘ</span>
                 </p>
               </Tooltip>
-              <p className="text-xl sm:text-2xl font-bold text-green-900">
-                {excludeK8sWorkers 
-                  ? formatCurrency(dropletData.totalCost - k8sWorkerCost)
-                  : formatCurrency(dropletData.totalCost)}
-              </p>
+              <p className="text-xl sm:text-2xl font-bold text-green-900">{formatCurrency(filteredCost)}</p>
+              {isFiltered && <p className="text-xs text-green-700 mt-1">of {formatCurrency(dropletData.totalCost)} total</p>}
             </div>
             <div className="bg-indigo-50 p-4 rounded-lg">
-              <Tooltip tooltip="Cost if all droplets were to run for a full month (672 hours) at their hourly rates, which is how DigitalOcean caps monthly billing." wide={true}>
+              <Tooltip tooltip="Cost if these droplets were to run for a full month (672 hours) at their hourly rates, which is how DigitalOcean caps monthly billing." wide={true}>
                 <p className="text-sm text-indigo-700 mb-1 cursor-help">
                   Full Month Cost <span className="text-xs">ⓘ</span>
                 </p>
               </Tooltip>
-              <p className="text-xl sm:text-2xl font-bold text-indigo-900">
-                {excludeK8sWorkers 
-                  ? formatCurrency(dropletData.totalFullMonthCost - k8sWorkerFullMonthCost)
-                  : formatCurrency(dropletData.totalFullMonthCost)}
-              </p>
+              <p className="text-xl sm:text-2xl font-bold text-indigo-900">{formatCurrency(filteredFullMonthCost)}</p>
+              {isFiltered && <p className="text-xs text-indigo-700 mt-1">of {formatCurrency(dropletData.totalFullMonthCost)} total</p>}
             </div>
             <div className="bg-purple-50 p-4 rounded-lg">
-              <p className="text-sm text-purple-700 mb-1">Filtered Cost</p>
-              <p className="text-xl sm:text-2xl font-bold text-purple-900">
-                {!hasActiveFilters && !excludeK8sWorkers
-                  ? "-"
-                  : formatCurrency(filteredCost)}
-              </p>
+              <p className="text-sm text-purple-700 mb-1">Hourly Rate</p>
+              <p className="text-xl sm:text-2xl font-bold text-purple-900">{formatCurrency(filteredHourlyRate)}/hr</p>
+              <p className="text-xs text-purple-700 mt-1">{isFiltered ? 'for the droplets shown' : 'for all droplets'}</p>
             </div>
           </div>
           

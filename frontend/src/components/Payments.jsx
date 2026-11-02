@@ -75,33 +75,35 @@ const Payments = () => {
 
   const years = useMemo(() => [...new Set(payments.map(payment => new Date(payment.date).getFullYear()))].sort((a, b) => b - a), [payments]);
 
-  // Year filter applies to the method cards too, so their totals match the table
-  const inYear = useMemo(() => payments.filter(payment =>
-    yearFilter === 'all' || String(new Date(payment.date).getFullYear()) === yearFilter
-  ), [payments, yearFilter]);
-
-  const methodTotals = useMemo(() => {
-    const totals = {};
-    inYear.forEach(payment => {
-      if (!totals[payment.method]) totals[payment.method] = { total: 0, count: 0, lastUsed: payment.date };
-      totals[payment.method].total += payment.amount;
-      totals[payment.method].count++;
-      if (new Date(payment.date) > new Date(totals[payment.method].lastUsed)) totals[payment.method].lastUsed = payment.date;
-    });
-    return totals;
-  }, [inYear]);
-
-  const filtered = useMemo(() => {
+  // Year and search apply to the method cards too, so the cards (and the PDF) match the table
+  const searched = useMemo(() => {
     const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    return inYear
-      .filter(payment => methodFilter === 'all' || payment.method === methodFilter)
+    return payments
+      .filter(payment => yearFilter === 'all' || String(new Date(payment.date).getFullYear()) === yearFilter)
       .filter(payment => {
         if (words.length === 0) return true;
         const text = [payment.method, payment.description, payment.receiptId, formatDate(payment.date), describePaidFor(payment), payment.amount.toFixed(2)]
           .join(' ').toLowerCase();
         return words.every(word => text.includes(word));
       });
-  }, [inYear, methodFilter, query]);
+  }, [payments, yearFilter, query]);
+
+  const methodTotals = useMemo(() => {
+    const totals = {};
+    searched.forEach(payment => {
+      if (!totals[payment.method]) totals[payment.method] = { total: 0, count: 0, lastUsed: payment.date };
+      totals[payment.method].total += payment.amount;
+      totals[payment.method].count++;
+      if (new Date(payment.date) > new Date(totals[payment.method].lastUsed)) totals[payment.method].lastUsed = payment.date;
+    });
+    return totals;
+  }, [searched]);
+
+  const filtered = useMemo(() => searched.filter(payment =>
+    methodFilter === 'all' || payment.method === methodFilter
+  ), [searched, methodFilter]);
+  
+  const searchedTotal = searched.reduce((sum, payment) => sum + payment.amount, 0);
 
   const filteredTotal = filtered.reduce((sum, payment) => sum + payment.amount, 0);
 
@@ -188,18 +190,20 @@ const Payments = () => {
                 className={`text-left p-4 rounded-lg border-2 bg-white shadow-sm transition-colors ${!selectedMethod ? 'border-blue-500' : 'border-transparent hover:border-gray-300'}`}
               >
                 <p className="text-sm text-gray-600 mb-1">All payment methods</p>
-                <p className="text-xl sm:text-2xl font-bold text-gray-900">{formatCurrency(inYear.reduce((sum, payment) => sum + payment.amount, 0))}</p>
-                <p className="text-xs text-gray-500 mt-1">{inYear.length} charge{inYear.length === 1 ? '' : 's'}</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900">{formatCurrency(searchedTotal)}</p>
+                <p className="text-xs text-gray-500 mt-1">{searched.length} charge{searched.length === 1 ? '' : 's'}</p>
               </button>
               {methods.map(method => {
                 const totals = methodTotals[method.method];
                 const active = selectedMethod === method.method;
+                // Cards with no charges in the current year/search are hidden (the selected one always stays)
+                if (!totals && !active) return null;
                 return (
                   <button
                     key={method.method}
                     type="button"
                     onClick={() => updateParam('method', active ? 'all' : method.method)}
-                    className={`text-left p-4 rounded-lg border-2 transition-colors ${method.type === 'Payment' ? 'bg-gradient-to-br from-slate-700 to-slate-900 text-white' : 'bg-green-50 text-green-900'} ${active ? 'border-blue-500 ring-2 ring-blue-200' : 'border-transparent hover:border-gray-300'} ${totals ? '' : 'opacity-50'}`}
+                    className={`text-left p-4 rounded-lg border-2 transition-colors ${method.type === 'Payment' ? 'bg-gradient-to-br from-slate-700 to-slate-900 text-white' : 'bg-green-50 text-green-900'} ${active ? 'border-blue-500 ring-2 ring-blue-200' : 'border-transparent hover:border-gray-300'}`}
                   >
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <span className="font-mono text-sm sm:text-base tracking-wide">{method.method}</span>
@@ -207,7 +211,7 @@ const Payments = () => {
                     </div>
                     <p className="text-xl sm:text-2xl font-bold">{formatCurrency(totals?.total || 0)}</p>
                     <p className="text-xs opacity-80 mt-1">
-                      {totals ? `${totals.count} charge${totals.count === 1 ? '' : 's'} · last ${formatDate(totals.lastUsed)}` : 'No charges in this year'}
+                      {totals ? `${totals.count} charge${totals.count === 1 ? '' : 's'} · last ${formatDate(totals.lastUsed)}` : 'No charges match the filters'}
                     </p>
                   </button>
                 );
