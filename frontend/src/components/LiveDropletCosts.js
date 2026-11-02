@@ -1,18 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { dropletService } from '../services/api';
+import { exportSheetsToExcel } from '../utils/excelExport';
+import ExportButtons from './ExportButtons';
+import MultiSelect from './MultiSelect';
+
+// Matches the backend limit for the monthly cost history endpoint
+const MAX_SELECTED_DROPLETS = 50;
 
 const LiveDropletCosts = () => {
   const [dropletData, setDropletData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedRegion, setSelectedRegion] = useState('all');
-  const [selectedTag, setSelectedTag] = useState('all');
-  const [selectedSlug, setSelectedSlug] = useState('all');
+  // Each filter holds any number of values; an empty list means "all"
+  const [selectedRegions, setSelectedRegions] = useState([]);
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [selectedSlugs, setSelectedSlugs] = useState([]);
+  const [selectedProjects, setSelectedProjects] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchRef = useRef(null);
   const [excludeK8sWorkers, setExcludeK8sWorkers] = useState(false);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [sortField, setSortField] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
-  
+  const [selectedIds, setSelectedIds] = useState([]);
+  const reportRef = useRef(null);
+  const navigate = useNavigate();
+
   useEffect(() => {
     const fetchDropletData = async () => {
       setLoading(true);
@@ -39,18 +53,30 @@ const LiveDropletCosts = () => {
     return () => clearInterval(refreshInterval);
   }, [refreshCounter]);
   
-  const handleRegionChange = (e) => {
-    setSelectedRegion(e.target.value);
-  };
+  // Press "/" anywhere on the page to jump to the search box
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      const tag = document.activeElement?.tagName;
+      if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
   
-  const handleTagChange = (e) => {
-    setSelectedTag(e.target.value);
-  };
+  const hasActiveFilters = searchQuery.trim() !== '' || selectedRegions.length > 0 || selectedTags.length > 0 ||
+    selectedSlugs.length > 0 || selectedProjects.length > 0;
   
-  const handleSlugChange = (e) => {
-    setSelectedSlug(e.target.value);
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setSelectedRegions([]);
+    setSelectedTags([]);
+    setSelectedSlugs([]);
+    setSelectedProjects([]);
   };
-  
+
   const handleExcludeK8sWorkersChange = (e) => {
     setExcludeK8sWorkers(e.target.checked);
   };
@@ -59,6 +85,29 @@ const LiveDropletCosts = () => {
     setRefreshCounter(prev => prev + 1);
   };
   
+  const toggleDropletSelection = (dropletId) => {
+    setSelectedIds(prev =>
+      prev.includes(dropletId)
+        ? prev.filter(id => id !== dropletId)
+        : prev.length < MAX_SELECTED_DROPLETS ? [...prev, dropletId] : prev
+    );
+  };
+
+  const toggleSelectAll = (droplets) => {
+    const visibleIds = droplets.map(droplet => droplet.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));
+
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(id => !visibleIds.includes(id)));
+    } else {
+      setSelectedIds(prev => [...new Set([...prev, ...visibleIds])].slice(0, MAX_SELECTED_DROPLETS));
+    }
+  };
+
+  const openDetails = (dropletIds) => {
+    navigate(`/droplets/details?ids=${dropletIds.join(',')}`);
+  };
+
   const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -133,24 +182,44 @@ const LiveDropletCosts = () => {
     
     let filtered = dropletData.droplets;
     
-    // Apply region filter
-    if (selectedRegion !== 'all') {
-      filtered = filtered.filter(droplet => droplet.region === selectedRegion);
+    // Search: every word must appear in the droplet's name, project, region, tags, slug or ID
+    const words = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length > 0) {
+      filtered = filtered.filter(droplet => {
+        const text = [
+          droplet.name,
+          droplet.id,
+          droplet.project?.name,
+          droplet.region,
+          droplet.regionName,
+          droplet.size,
+          ...(droplet.tags || [])
+        ].filter(Boolean).join(' ').toLowerCase();
+        return words.every(word => text.includes(word));
+      });
     }
     
-    // Apply tag filter
-    if (selectedTag !== 'all') {
-      filtered = filtered.filter(droplet => 
-        droplet.tags && 
-        droplet.tags.includes(selectedTag)
+    // Within a filter any selected value matches; across filters all must match
+    if (selectedRegions.length > 0) {
+      filtered = filtered.filter(droplet => selectedRegions.includes(droplet.region));
+    }
+    
+    if (selectedTags.length > 0) {
+      filtered = filtered.filter(droplet =>
+        droplet.tags && droplet.tags.some(tag => selectedTags.includes(tag))
       );
     }
     
-    // Apply slug filter
-    if (selectedSlug !== 'all') {
-      filtered = filtered.filter(droplet => droplet.size === selectedSlug);
+    if (selectedSlugs.length > 0) {
+      filtered = filtered.filter(droplet => selectedSlugs.includes(droplet.size));
     }
-    
+
+    if (selectedProjects.length > 0) {
+      filtered = filtered.filter(droplet =>
+        selectedProjects.includes(droplet.project ? droplet.project.id : 'none')
+      );
+    }
+
     // Exclude DOKS worker nodes if option is enabled
     if (excludeK8sWorkers) {
       filtered = filtered.filter(droplet => 
@@ -184,6 +253,19 @@ const LiveDropletCosts = () => {
     }));
   };
   
+  const getProjectOptions = () => {
+    if (!dropletData || !dropletData.projectSummary) return [];
+
+    return Object.entries(dropletData.projectSummary)
+      .map(([projectId, data]) => ({
+        id: projectId,
+        name: data.name,
+        count: data.count,
+        cost: data.totalCost
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  };
+
   const getSlugOptions = () => {
     if (!dropletData || !dropletData.droplets) return [];
     
@@ -238,27 +320,65 @@ const LiveDropletCosts = () => {
   const regionOptions = getRegionOptions();
   const tagOptions = getTagOptions();
   const slugOptions = getSlugOptions();
+  const projectOptions = getProjectOptions();
   const filteredCost = filteredDroplets.reduce((sum, droplet) => sum + droplet.projected_cost, 0);
   const filteredFullMonthCost = filteredDroplets.reduce((sum, droplet) => sum + droplet.full_month_cost, 0);
   const k8sWorkerCount = getK8sWorkerCount();
   const k8sWorkerCost = getK8sWorkerCost();
   const k8sWorkerFullMonthCost = getK8sWorkerFullMonthCost();
   
+  const exportFilename = () => `droplet-costs_${new Date().toISOString().slice(0, 10)}`;
+  
+  // Exports exactly the droplets the current filters show
+  const exportExcel = () => exportSheetsToExcel([{
+    name: 'Droplet Costs',
+    columns: [
+      { header: 'Name', key: 'name', width: 32 },
+      { header: 'Project', key: 'project', width: 22 },
+      { header: 'Region', key: 'region', width: 16 },
+      { header: 'Tags', key: 'tags', width: 30 },
+      { header: 'Slug', key: 'size', width: 16 },
+      { header: 'vCPUs', key: 'vcpus', width: 8 },
+      { header: 'Memory (GB)', key: 'memory', width: 12 },
+      { header: 'Disk (GB)', key: 'disk', width: 10 },
+      { header: 'Created', key: 'created', width: 14 },
+      { header: 'Rate / Hour', key: 'hourly', width: 12, currency: true },
+      { header: 'Projected Cost', key: 'projected', width: 15, currency: true },
+      { header: 'Full Month Cost', key: 'fullMonth', width: 15, currency: true }
+    ],
+    rows: filteredDroplets.map(droplet => ({
+      name: droplet.name,
+      project: droplet.project?.name || '',
+      region: droplet.regionName,
+      tags: (droplet.tags || []).join(', '),
+      size: droplet.size,
+      vcpus: droplet.vcpus,
+      memory: droplet.memory / 1024,
+      disk: droplet.disk,
+      created: new Date(droplet.created_at),
+      hourly: droplet.hourly_price,
+      projected: droplet.projected_cost,
+      fullMonth: droplet.full_month_cost
+    })),
+    totalRow: { name: `Total (${filteredDroplets.length} droplets)`, projected: filteredCost, fullMonth: filteredFullMonthCost }
+  }], exportFilename());
+  
   // Tooltip components
   const Tooltip = ({ children, tooltip, wide, position = 'top' }) => (
     <div className="relative flex items-center group">
       {children}
-      <div className={`absolute ${position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'} left-1/2 transform -translate-x-1/2 px-3 py-2 bg-gray-800 text-white text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-[100] ${wide ? 'w-[19rem]' : 'w-64'}`}>
+      <div className={`hidden sm:block absolute max-w-[calc(100vw-2rem)] ${position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'} left-1/2 transform -translate-x-1/2 px-3 py-2 bg-gray-800 text-white text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-[100] ${wide ? 'w-[19rem]' : 'w-64'}`}>
         {tooltip}
       </div>
     </div>
   );
   
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-      <div className="flex justify-between items-center mb-6">
+    <div ref={reportRef} className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-8">
+      <div className="flex flex-wrap justify-between items-center gap-2 mb-6">
         <h2 className="text-xl font-semibold text-gray-800">Live Droplet Costs</h2>
         <button
+          data-html2canvas-ignore="true"
           onClick={handleManualRefresh}
           className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
           disabled={loading}
@@ -282,10 +402,10 @@ const LiveDropletCosts = () => {
         </div>
       ) : dropletData ? (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <div className="bg-blue-50 p-4 rounded-lg">
               <p className="text-sm text-blue-700 mb-1">Total Droplets</p>
-              <p className="text-2xl font-bold text-blue-900">
+              <p className="text-xl sm:text-2xl font-bold text-blue-900">
                 {dropletData.count}
                 {excludeK8sWorkers && k8sWorkerCount > 0 && (
                   <span className="text-sm font-normal ml-2">
@@ -300,7 +420,7 @@ const LiveDropletCosts = () => {
                   Total Projected Cost <span className="text-xs">ⓘ</span>
                 </p>
               </Tooltip>
-              <p className="text-2xl font-bold text-green-900">
+              <p className="text-xl sm:text-2xl font-bold text-green-900">
                 {excludeK8sWorkers 
                   ? formatCurrency(dropletData.totalCost - k8sWorkerCost)
                   : formatCurrency(dropletData.totalCost)}
@@ -312,7 +432,7 @@ const LiveDropletCosts = () => {
                   Full Month Cost <span className="text-xs">ⓘ</span>
                 </p>
               </Tooltip>
-              <p className="text-2xl font-bold text-indigo-900">
+              <p className="text-xl sm:text-2xl font-bold text-indigo-900">
                 {excludeK8sWorkers 
                   ? formatCurrency(dropletData.totalFullMonthCost - k8sWorkerFullMonthCost)
                   : formatCurrency(dropletData.totalFullMonthCost)}
@@ -320,8 +440,8 @@ const LiveDropletCosts = () => {
             </div>
             <div className="bg-purple-50 p-4 rounded-lg">
               <p className="text-sm text-purple-700 mb-1">Filtered Cost</p>
-              <p className="text-2xl font-bold text-purple-900">
-                {selectedRegion === 'all' && selectedTag === 'all' && selectedSlug === 'all' && !excludeK8sWorkers
+              <p className="text-xl sm:text-2xl font-bold text-purple-900">
+                {!hasActiveFilters && !excludeK8sWorkers
                   ? "-"
                   : formatCurrency(filteredCost)}
               </p>
@@ -342,70 +462,150 @@ const LiveDropletCosts = () => {
               </label>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="relative mb-4">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+              </svg>
+              <input
+                ref={searchRef}
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') setSearchQuery(''); }}
+                placeholder="Search droplets by name, project, region, tag, slug or ID..."
+                className="block w-full pl-10 pr-12 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                aria-label="Search droplets"
+              />
+              <kbd className="hidden sm:block absolute right-3 top-1/2 -translate-y-1/2 px-2 py-0.5 text-xs text-gray-500 border border-gray-300 rounded bg-gray-50" data-html2canvas-ignore="true">/</kbd>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label htmlFor="project-select" className="block text-sm font-medium text-gray-700 mb-2">
+                  Filter by Project
+                </label>
+                <MultiSelect
+                  id="project-select"
+                  allLabel="All Projects"
+                  selected={selectedProjects}
+                  onChange={setSelectedProjects}
+                  options={projectOptions.map(project => ({
+                    value: project.id,
+                    label: project.name,
+                    hint: `${project.count} droplets · ${formatCurrency(project.cost)}`
+                  }))}
+                />
+              </div>
+
               <div>
                 <label htmlFor="region-select" className="block text-sm font-medium text-gray-700 mb-2">
                   Filter by Region
                 </label>
-                <select
+                <MultiSelect
                   id="region-select"
-                  value={selectedRegion}
-                  onChange={handleRegionChange}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">All Regions</option>
-                  {regionOptions.map((region) => (
-                    <option key={region.slug} value={region.slug}>
-                      {region.name} ({region.count} droplets - {formatCurrency(region.cost)})
-                    </option>
-                  ))}
-                </select>
+                  allLabel="All Regions"
+                  selected={selectedRegions}
+                  onChange={setSelectedRegions}
+                  options={regionOptions.map(region => ({
+                    value: region.slug,
+                    label: region.name,
+                    hint: `${region.count} droplets · ${formatCurrency(region.cost)}`
+                  }))}
+                />
               </div>
               
               <div>
                 <label htmlFor="tag-select" className="block text-sm font-medium text-gray-700 mb-2">
                   Filter by Tag
                 </label>
-                <select
+                <MultiSelect
                   id="tag-select"
-                  value={selectedTag}
-                  onChange={handleTagChange}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">All Tags</option>
-                  {tagOptions.map((tag) => (
-                    <option key={tag.name} value={tag.name}>
-                      {tag.name} ({tag.count} droplets - {formatCurrency(tag.cost)})
-                    </option>
-                  ))}
-                </select>
+                  allLabel="All Tags"
+                  selected={selectedTags}
+                  onChange={setSelectedTags}
+                  options={tagOptions.map(tag => ({
+                    value: tag.name,
+                    label: tag.name,
+                    hint: `${tag.count} droplets · ${formatCurrency(tag.cost)}`
+                  }))}
+                />
               </div>
               
               <div>
                 <label htmlFor="slug-select" className="block text-sm font-medium text-gray-700 mb-2">
                   Filter by Slug
                 </label>
-                <select
+                <MultiSelect
                   id="slug-select"
-                  value={selectedSlug}
-                  onChange={handleSlugChange}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">All Slugs</option>
-                  {slugOptions.map((slug) => (
-                    <option key={slug.slug} value={slug.slug}>
-                      {slug.slug} ({slug.count} droplets - {formatCurrency(slug.cost)})
-                    </option>
-                  ))}
-                </select>
+                  allLabel="All Slugs"
+                  selected={selectedSlugs}
+                  onChange={setSelectedSlugs}
+                  options={slugOptions.map(slug => ({
+                    value: slug.slug,
+                    label: slug.slug,
+                    hint: `${slug.count} droplets · ${formatCurrency(slug.cost)}`
+                  }))}
+                />
               </div>
             </div>
+            
+            {hasActiveFilters && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                <span>Showing {filteredDroplets.length} of {dropletData.count} droplets</span>
+                <button type="button" onClick={clearAllFilters} className="text-blue-600 hover:underline" data-html2canvas-ignore="true">
+                  Clear all filters
+                </button>
+              </div>
+            )}
           </div>
           
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <p className="text-sm text-gray-600">
+              {selectedIds.length > 0
+                ? `${selectedIds.length} droplet${selectedIds.length > 1 ? 's' : ''} selected`
+                : 'Select droplets to view their monthly cost history together'}
+              {selectedIds.length >= MAX_SELECTED_DROPLETS && ` (max ${MAX_SELECTED_DROPLETS})`}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <ExportButtons
+                onExcel={exportExcel}
+                pdfTarget={reportRef}
+                filename={exportFilename}
+                disabled={filteredDroplets.length === 0}
+              />
+              {selectedIds.length > 0 && (
+                <button
+                  data-html2canvas-ignore="true"
+                  onClick={() => setSelectedIds([])}
+                  className="px-3 py-1 text-sm text-gray-700 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+              <button
+                data-html2canvas-ignore="true"
+                onClick={() => openDetails(selectedIds)}
+                disabled={selectedIds.length === 0}
+                className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                View Details{selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
+              </button>
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 table-fixed">
+            <table className="w-full min-w-[1100px] divide-y divide-gray-200 table-fixed">
               <thead className="bg-gray-50">
                 <tr>
+                  <th scope="col" className="px-3 py-2 w-8">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all droplets"
+                      checked={filteredDroplets.length > 0 && filteredDroplets.every(droplet => selectedIds.includes(droplet.id))}
+                      onChange={() => toggleSelectAll(filteredDroplets)}
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                  </th>
                   <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">Name</th>
                   <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/12">Region</th>
                   <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">Tags</th>
@@ -445,12 +645,27 @@ const LiveDropletCosts = () => {
                       <SortIcon field="fullMonthCost" />
                     </div>
                   </th>
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/12">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredDroplets.map((droplet) => (
-                  <tr key={droplet.id}>
-                    <td className="px-3 py-3 text-sm font-medium text-gray-900 truncate max-w-xs">{droplet.name}</td>
+                  <tr key={droplet.id} className={selectedIds.includes(droplet.id) ? 'bg-blue-50' : undefined}>
+                    <td className="px-3 py-3">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${droplet.name}`}
+                        checked={selectedIds.includes(droplet.id)}
+                        onChange={() => toggleDropletSelection(droplet.id)}
+                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                    </td>
+                    <td className="px-3 py-3 text-sm font-medium text-gray-900 truncate max-w-xs">
+                      {droplet.name}
+                      {droplet.project && (
+                        <div className="text-xs font-normal text-gray-500 truncate">{droplet.project.name}</div>
+                      )}
+                    </td>
                     <td className="px-3 py-3 text-sm text-gray-500">{droplet.regionName}</td>
                     <td className="px-3 py-3 text-sm text-gray-500">
                       {droplet.tags && droplet.tags.length > 0 ? (
@@ -496,6 +711,14 @@ const LiveDropletCosts = () => {
                     </td>
                     <td className="px-3 py-3 text-sm text-gray-900">
                       {formatCurrency(droplet.full_month_cost)}
+                    </td>
+                    <td className="px-3 py-3 text-sm">
+                      <Link
+                        to={`/droplets/details?ids=${droplet.id}`}
+                        className="px-2 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition-colors whitespace-nowrap"
+                      >
+                        Details
+                      </Link>
                     </td>
                   </tr>
                 ))}

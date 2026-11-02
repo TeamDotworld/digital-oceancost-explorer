@@ -49,7 +49,7 @@ router.get('/callback', async (req, res) => {
     }
     
     // Redirect to frontend dashboard
-    res.redirect(`${config.frontendUrl}/dashboard`);
+    res.redirect(`${config.frontendUrl}/overview`);
   } catch (error) {
     console.error('Error during token exchange:', error.response?.data || error.message);
     

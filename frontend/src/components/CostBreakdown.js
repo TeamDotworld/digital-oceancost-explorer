@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { exportSheetsToExcel } from '../utils/excelExport';
+import ExportButtons from './ExportButtons';
 
 // Safe date parsing function to handle cross-browser compatibility
 function safeParseDate(dateString) {
@@ -39,7 +41,7 @@ function safeParseDate(dateString) {
   return null;
 }
 
-const CostBreakdown = ({ invoiceData }) => {
+const CostBreakdown = ({ invoiceData, reportRef, periodLabel }) => {
   const [chartData, setChartData] = useState([]);
   const [serviceTypes, setServiceTypes] = useState([]);
   const [totalCosts, setTotalCosts] = useState({});
@@ -200,10 +202,40 @@ const CostBreakdown = ({ invoiceData }) => {
     return ((value / total) * 100).toFixed(1);
   };
   
+  const exportFilename = () => `historical-costs_${(periodLabel || 'period').replace(/[^\w.-]+/g, '_')}`;
+  
+  // Summary by service plus the full daily table, matching what the page shows
+  const exportExcel = () => exportSheetsToExcel([
+    {
+      name: 'Summary by Service',
+      columns: [
+        { header: 'Service Type', key: 'service', width: 32 },
+        { header: 'Total Cost', key: 'total', width: 14, currency: true },
+        { header: 'Percentage', key: 'percent', width: 12 }
+      ],
+      rows: serviceTypes.map(type => ({
+        service: type,
+        total: totalCosts[type],
+        percent: `${calculatePercentage(totalCosts[type], totalCosts.total)}%`
+      })),
+      totalRow: { service: 'Total', total: totalCosts.total, percent: '100%' }
+    },
+    {
+      name: 'Daily Costs',
+      columns: [
+        { header: 'Date', key: 'date', width: 14 },
+        ...serviceTypes.map(type => ({ header: type, key: type, width: 16, currency: true })),
+        { header: 'Total', key: 'total', width: 14, currency: true }
+      ],
+      rows: chartData,
+      totalRow: { date: 'Total', ...totalCosts }
+    }
+  ], exportFilename());
+  
   // If no data, show message
   if (chartData.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-md p-6 text-center">
+      <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 text-center">
         <p className="text-gray-600">No cost data to display. This could be because there are no billable services in this period, or all services have been filtered out.</p>
       </div>
     );
@@ -211,6 +243,11 @@ const CostBreakdown = ({ invoiceData }) => {
   
   return (
     <div>
+      {reportRef && (
+        <div className="flex justify-end mb-4">
+          <ExportButtons onExcel={exportExcel} pdfTarget={reportRef} filename={exportFilename} />
+        </div>
+      )}
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-4">Daily Costs by Service Type</h2>
         <p className="mb-4 text-gray-600">Excluding Premier Support Subscription, Discounts, and Commitment Deal Surcharge</p>
@@ -255,29 +292,29 @@ const CostBreakdown = ({ invoiceData }) => {
           <table className="min-w-full">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Service Type</th>
-                <th className="px-6 py-3 text-right text-sm font-medium text-gray-700">Total Cost</th>
-                <th className="px-6 py-3 text-right text-sm font-medium text-gray-700">Percentage</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-sm font-medium text-gray-700">Service Type</th>
+                <th className="px-3 sm:px-6 py-3 text-right text-sm font-medium text-gray-700">Total Cost</th>
+                <th className="px-3 sm:px-6 py-3 text-right text-sm font-medium text-gray-700">Percentage</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {serviceTypes.map(type => (
                 <tr key={type} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm text-gray-900">{type}</td>
-                  <td className="px-6 py-4 text-sm text-right text-gray-900">
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-900">{type}</td>
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-right text-gray-900">
                     {formatCurrency(totalCosts[type])}
                   </td>
-                  <td className="px-6 py-4 text-sm text-right text-gray-900">
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-right text-gray-900">
                     {calculatePercentage(totalCosts[type], totalCosts.total)}%
                   </td>
                 </tr>
               ))}
               <tr className="bg-gray-50 font-semibold">
-                <td className="px-6 py-4 text-sm text-gray-900">Total</td>
-                <td className="px-6 py-4 text-sm text-right text-gray-900">
+                <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-900">Total</td>
+                <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-right text-gray-900">
                   {formatCurrency(totalCosts.total)}
                 </td>
-                <td className="px-6 py-4 text-sm text-right text-gray-900">100%</td>
+                <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-right text-gray-900">100%</td>
               </tr>
             </tbody>
           </table>
@@ -291,25 +328,25 @@ const CostBreakdown = ({ invoiceData }) => {
           <table className="min-w-full">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Date</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-sm font-medium text-gray-700">Date</th>
                 {serviceTypes.map(type => (
-                  <th key={type} className="px-6 py-3 text-right text-sm font-medium text-gray-700">
+                  <th key={type} className="px-3 sm:px-6 py-3 text-right text-sm font-medium text-gray-700">
                     {type}
                   </th>
                 ))}
-                <th className="px-6 py-3 text-right text-sm font-medium text-gray-700">Total</th>
+                <th className="px-3 sm:px-6 py-3 text-right text-sm font-medium text-gray-700">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {chartData.map(day => (
                 <tr key={day.date} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm text-gray-900">{day.date}</td>
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-900">{day.date}</td>
                   {serviceTypes.map(type => (
-                    <td key={type} className="px-6 py-4 text-sm text-right text-gray-900">
+                    <td key={type} className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-right text-gray-900">
                       {formatCurrency(day[type])}
                     </td>
                   ))}
-                  <td className="px-6 py-4 text-sm text-right font-semibold text-gray-900">
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-right font-semibold text-gray-900">
                     {formatCurrency(day.total)}
                   </td>
                 </tr>

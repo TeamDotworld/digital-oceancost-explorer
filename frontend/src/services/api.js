@@ -31,6 +31,34 @@ export const invoiceService = {
   }
 };
 
+export const billingService = {
+  getPayments: async () => {
+    const response = await apiClient.get('/billing/payments');
+    return response.data;
+  }
+};
+
+export const overviewService = {
+  getOverview: async () => {
+    const response = await apiClient.get('/overview');
+    return response.data;
+  }
+};
+
+export const wasteService = {
+  getUnusedResources: async () => {
+    const response = await apiClient.get('/waste');
+    return response.data;
+  }
+};
+
+export const networkService = {
+  getIpAddresses: async () => {
+    const response = await apiClient.get('/network/ip-addresses');
+    return response.data;
+  }
+};
+
 export const dropletService = {
   getLiveCosts: async () => {
     const response = await apiClient.get('/droplets/live-costs');
@@ -39,6 +67,13 @@ export const dropletService = {
   
   getDropletNames: async (dropletIds) => {
     const response = await apiClient.post('/droplets/names', { dropletIds });
+    return response.data;
+  },
+
+  getMonthlyCosts: async (dropletIds) => {
+    const response = await apiClient.get('/droplets/monthly-costs', {
+      params: { ids: dropletIds.join(',') }
+    });
     return response.data;
   }
 };

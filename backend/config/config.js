@@ -1,3 +1,13 @@
+const path = require('node:path');
+
+// Load local settings before reading config, without overriding exported variables.
+try {
+    process.loadEnvFile(path.join(__dirname, '..', '.env'));
+} catch (error) {
+    // Deployments can supply all settings through the environment instead.
+    if (error.code !== 'ENOENT') throw error;
+}
+
 const config = {
     port: process.env.PORT || 5000,
     clientId: process.env.DO_CLIENT_ID,

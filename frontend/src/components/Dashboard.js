@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { invoiceService } from '../services/api';
 import CostBreakdown from './CostBreakdown';
 import Footer from './Footer';
@@ -10,6 +10,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [invoiceData, setInvoiceData] = useState(null);
   const [error, setError] = useState(null);
+  const reportRef = useRef(null);
   
   useEffect(() => {
     const fetchBillingPeriods = async () => {
@@ -94,9 +95,9 @@ const Dashboard = () => {
   
   return (
     <div className="flex flex-col min-h-screen">
-      <div className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-4">DigitalOcean Historical Costs</h1>
+      <div ref={reportRef} className="flex-grow w-full min-w-0 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2 sm:mb-4">DigitalOcean Historical Costs</h1>
           <p className="text-gray-600">View and analyze your DigitalOcean costs by service type and billing period</p>
         </div>
         
@@ -106,7 +107,7 @@ const Dashboard = () => {
           </div>
         )}
         
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-8">
           <div className="mb-4">
             <label htmlFor="period-select" className="block text-sm font-medium text-gray-700 mb-2">
               Select Billing Period
@@ -138,7 +139,7 @@ const Dashboard = () => {
         </div>
         
         {loading && selectedPeriod ? (
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
             <div className="flex justify-center items-center h-64">
               <svg className="animate-spin h-10 w-10 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -147,9 +148,13 @@ const Dashboard = () => {
             </div>
           </div>
         ) : invoiceData && invoiceData.length > 0 ? (
-          <CostBreakdown invoiceData={invoiceData} />
+          <CostBreakdown
+            invoiceData={invoiceData}
+            reportRef={reportRef}
+            periodLabel={billingPeriods.find(period => String(period.id) === String(selectedPeriod))?.period}
+          />
         ) : selectedPeriod && !loading ? (
-          <div className="bg-white rounded-lg shadow-md p-6 text-center">
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 text-center">
             <p className="text-gray-600">No invoice data available for this period.</p>
           </div>
         ) : null}

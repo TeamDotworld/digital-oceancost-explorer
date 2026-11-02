@@ -182,7 +182,7 @@ const BandwidthBreakdown = () => {
   const summaryStats = getSummaryStats();
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 mb-8 max-w-none">
+    <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-8 max-w-none">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">Bandwidth Breakdown</h2>
         <p className="text-gray-600 mb-4">
@@ -211,7 +211,7 @@ const BandwidthBreakdown = () => {
             accept=".csv"
             onChange={handleFileUpload}
             disabled={loading}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            className="block w-full min-w-0 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
           />
         </div>
 
@@ -235,16 +235,16 @@ const BandwidthBreakdown = () => {
 
 
         {summaryStats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
           <div className="bg-blue-50 p-4 rounded-lg">
             <p className="text-sm text-blue-700 mb-1">Total Bandwidth</p>
-            <p className="text-2xl font-bold text-blue-900">
+            <p className="text-xl sm:text-2xl font-bold text-blue-900">
               {formatBytes(summaryStats.totalBandwidth * 1024 * 1024 * 1024)}
             </p>
           </div>
           <div className="bg-green-50 p-4 rounded-lg">
             <p className="text-sm text-green-700 mb-1">Droplets</p>
-            <p className="text-2xl font-bold text-green-900">
+            <p className="text-xl sm:text-2xl font-bold text-green-900">
               {summaryStats.dropletCount}
             </p>
             <p className="text-xs text-green-600">
@@ -253,7 +253,7 @@ const BandwidthBreakdown = () => {
           </div>
           <div className="bg-purple-50 p-4 rounded-lg">
             <p className="text-sm text-purple-700 mb-1">Kubernetes</p>
-            <p className="text-2xl font-bold text-purple-900">
+            <p className="text-xl sm:text-2xl font-bold text-purple-900">
               {summaryStats.k8sCount}
             </p>
             <p className="text-xs text-purple-600">
@@ -262,7 +262,7 @@ const BandwidthBreakdown = () => {
           </div>
           <div className="bg-indigo-50 p-4 rounded-lg">
             <p className="text-sm text-indigo-700 mb-1">Average per Resource</p>
-            <p className="text-2xl font-bold text-indigo-900">
+            <p className="text-xl sm:text-2xl font-bold text-indigo-900">
               {formatBytes((summaryStats.totalBandwidth / (summaryStats.dropletCount + summaryStats.k8sCount)) * 1024 * 1024 * 1024)}
             </p>
           </div>
@@ -271,7 +271,7 @@ const BandwidthBreakdown = () => {
 
       {sortedData && sortedData.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full divide-y divide-gray-200">
+          <table className="w-full min-w-[900px] divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">

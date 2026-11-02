@@ -22,7 +22,7 @@ const Login = () => {
       try {
         const { isAuthenticated } = await authService.checkAuthStatus();
         if (isAuthenticated) {
-          navigate('/dashboard');
+          navigate('/overview');
         }
       } catch (error) {
         console.error('Auth check failed:', error);
@@ -37,10 +37,10 @@ const Login = () => {
   };
   
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
-      <div className="w-full bg-white rounded-lg shadow-lg p-8" style={{ maxWidth: '42rem' }}>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 px-4 py-8">
+      <div className="w-full bg-white rounded-lg shadow-lg p-5 sm:p-8" style={{ maxWidth: '42rem' }}>
         <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">DigitalOcean Cost Explorer</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">DigitalOcean Cost Explorer</h1>
           <p className="mt-2 text-gray-600">Comprehensive cost analysis for your DigitalOcean resources</p>
         </div>
         

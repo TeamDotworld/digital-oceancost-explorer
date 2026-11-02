@@ -8,6 +8,10 @@ const config = require('./config/config');
 const authRoutes = require('./routes/auth');
 const invoiceRoutes = require('./routes/invoices');
 const dropletRoutes = require('./routes/droplets');
+const networkRoutes = require('./routes/network');
+const overviewRoutes = require('./routes/overview');
+const wasteRoutes = require('./routes/waste');
+const billingRoutes = require('./routes/billing');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -49,6 +53,9 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // Add this for form data
 
+// Secure cookies only work over HTTPS; local dev runs on plain http://localhost
+const useSecureCookies = config.frontendUrl ? config.frontendUrl.startsWith('https://') : true;
+
 // Session configuration with Redis store
 app.use(session({
   store: new RedisStore({ client: redisClient }),
@@ -57,12 +64,12 @@ app.use(session({
   saveUninitialized: false,
   name: 'do_cost_explorer_session',
   cookie: {
-    secure: true,
+    secure: useSecureCookies,
     httpOnly: true,
     maxAge: 45 * 24 * 60 * 60 * 1000, // 45 days
     path: '/', // Important: make cookie available across all paths
-    sameSite: 'none',
-    domain: config.frontendUrl ? new URL(config.frontendUrl).hostname : undefined
+    sameSite: useSecureCookies ? 'none' : 'lax',
+    domain: useSecureCookies && config.frontendUrl ? new URL(config.frontendUrl).hostname : undefined
   },
   proxy: true
 }));
@@ -76,6 +83,10 @@ app.get('/api/healthcheck', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/droplets', dropletRoutes);
+app.use('/api/network', networkRoutes);
+app.use('/api/overview', overviewRoutes);
+app.use('/api/waste', wasteRoutes);
+app.use('/api/billing', billingRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
